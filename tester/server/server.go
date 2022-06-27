@@ -12,12 +12,14 @@ import (
 type MyConfig struct {
 	Addr    string
 	Timeout time.Duration
+	Motd    string
 }
 
 func (m *MyConfig) Flags() commond.Flags {
 	return commond.Flags{
 		commond.Flag{Name: "addr", Default: m.Addr, Description: "address to listen", Ptr: &m.Addr},
 		commond.Flag{Name: "timeout", Default: m.Timeout, Description: "timeout for http connectiong", Ptr: &m.Timeout},
+		commond.Flag{Name: "motd", Default: m.Motd, Description: "hello message", Ptr: &m.Motd},
 	}
 }
 
@@ -25,6 +27,7 @@ func main() {
 	conf := &MyConfig{
 		Addr:    "127.0.0.1:8080",
 		Timeout: time.Second * 3,
+		Motd:    "unset motd flag",
 	}
 
 	// end advanced preflag
@@ -38,17 +41,20 @@ func main() {
 	})
 }
 
-type Server struct{}
+type Server struct {
+	config *MyConfig
+}
 
 func (s Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "hi\n")
+	fmt.Fprintf(w, "%s\n", s.config.Motd)
 }
 func newServer(config *MyConfig) http.Handler {
 	return Server{
-		//
+		config: config,
 	}
 }
 func mainfn(config *MyConfig) error {
 	server := newServer(config)
+	go log.Println("listening:", config.Addr)
 	return http.ListenAndServe(config.Addr, server)
 }
