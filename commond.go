@@ -75,6 +75,9 @@ type App struct {
 }
 
 func (a App) Run(mainfn func(c Config) error) error {
+	if mainfn == nil {
+		panic("no main function given")
+	}
 	return mainfn(a.Config)
 }
 
