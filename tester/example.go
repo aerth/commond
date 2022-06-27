@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	commond "example.com/m"
+	commond "github.com/aerth/commond"
 )
 
 func main() {

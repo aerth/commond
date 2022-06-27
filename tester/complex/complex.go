@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	commond "example.com/m"
+	commond "github.com/aerth/commond"
 )
 
 type MyConfig struct {
