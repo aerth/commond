@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	commond "github.com/aerth/commond"
@@ -56,5 +57,15 @@ func newServer(config *MyConfig) http.Handler {
 func mainfn(config *MyConfig) error {
 	server := newServer(config)
 	go log.Println("listening:", config.Addr)
-	return http.ListenAndServe(config.Addr, server)
+	// return http.ListenAndServe(config.Addr, server)
+	httpserver := &http.Server{
+		Addr:              config.Addr,
+		Handler:           server,
+		ReadTimeout:       config.Timeout,
+		WriteTimeout:      config.Timeout,
+		ReadHeaderTimeout: config.Timeout,
+		IdleTimeout:       config.Timeout,
+		ErrorLog:          log.New(os.Stderr, "http>", log.Lshortfile|log.LstdFlags),
+	}
+	return httpserver.ListenAndServe()
 }
