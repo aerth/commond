@@ -5,75 +5,36 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
 )
 
-type Config interface {
-	Flags() Flags
-}
-
-type Flag struct {
-	Name        string
-	Shortname   string `json:"omitempty"`
-	Description string
-	Ptr         any
-	Default     any
-}
-type Flags []Flag
-
-func (f Flags) GetFlags() *flag.FlagSet {
-	errorHandling := flag.ExitOnError
-	cmdname := ""
-	flags := flag.NewFlagSet(cmdname, errorHandling)
-	if len(f) == 0 {
-		panic("zero length flags")
-	}
-	if Debug {
-		log.Printf("got %d flags: %T", len(f), f[0].Default)
-		log.Printf("got %d flags: %T", len(f), f[1].Default)
-	}
-	for i, flaginfo := range f {
-		switch flaginfo.Default.(type) {
-		case string:
-			if Debug {
-				log.Println("is string", flaginfo)
-			}
-			flags.StringVar(flaginfo.Ptr.(*string), flaginfo.Name, flaginfo.Default.(string), flaginfo.Description)
-		case int:
-			if Debug {
-				log.Println("is int", flaginfo)
-			}
-			flags.IntVar(flaginfo.Ptr.(*int), flaginfo.Name, flaginfo.Default.(int), flaginfo.Description)
-		case bool:
-			if Debug {
-				log.Println("is bool", flaginfo)
-			}
-			flags.BoolVar(flaginfo.Ptr.(*bool), flaginfo.Name, flaginfo.Default.(bool), flaginfo.Description)
-		case time.Duration:
-			if Debug {
-				log.Println("is time.Duration", flaginfo)
-			}
-			flags.DurationVar(flaginfo.Ptr.(*time.Duration), flaginfo.Name, flaginfo.Default.(time.Duration), flaginfo.Description)
-		default:
-			panic(fmt.Sprintf("unhandled flag #%d type: %T", i, flaginfo.Default))
-		}
-	}
-
-	return flags
-}
-
+// Debug flag parsing
 var Debug = os.Getenv("DEBUGFLAGS") != ""
-var LogFlag = func() int {
-	if Debug {
-		return log.Lshortfile
-	}
-	return 0
-}()
 
+// Your custom Config struct needs a Flags() method. It could be quick returning an array of Flag.
+type Config interface {
+	Flags() IFlags
+}
+
+// Advanced: custom IFlags to bypass BaseConfig
+type IFlags interface {
+	GetFlags() *flag.FlagSet
+}
+
+// App wraps your customized Config and provides Run(config) function.
 type App struct {
 	Config Config
 }
 
+// HasConfigFile if your config type implements ConfigFile method, reads config file before flags (toml-then-flag)
+// For flag-then-toml parse, call ReadConfigFile yourself (no ConfigFile method)
+type HasConfigFile interface {
+	ConfigFile() string
+}
+
+// New is alias for Parse
+var New = Parse
+
+// Run app with your config
 func (a App) Run(mainfn func(c Config) error) error {
 	if mainfn == nil {
 		panic("no main function given")
@@ -81,20 +42,38 @@ func (a App) Run(mainfn func(c Config) error) error {
 	return mainfn(a.Config)
 }
 
-var New = Parse
+// LogFlag is the log flag int for the log package
+var LogFlag = func() int {
+	if Debug {
+		return log.Lshortfile
+	}
+	return 0
+}()
 
-func Parse(config Config, cliargs ...[]string) (*App, error) {
+// Parse a config into App. Given config should be 'sane default values'.
+// See HasConfigFile and IFlags for advanced customization possibilities
+func Parse(config Config, cliargs ...string) (*App, error) {
 	if cliargs != nil && len(cliargs) != 1 {
 		return nil, fmt.Errorf("too many args")
 	}
 	if cliargs == nil {
-		cliargs = [][]string{os.Args[1:]}
+		cliargs = os.Args[1:]
 	}
 	log.SetFlags(LogFlag)
 	if config == nil {
-		config = DefaultBaseConfig()
+		return nil, fmt.Errorf("no config no app")
 	}
 	fs := config.Flags().GetFlags()
-	err := fs.Parse(cliargs[0])
+	err := fs.Parse(cliargs)
+	_, hasConfigFile := config.(HasConfigFile)
+	if hasConfigFile {
+		configFile := config.(HasConfigFile).ConfigFile()
+		if err := ReadConfigFile(configFile, config, true); err != nil {
+			if os.IsNotExist(err) {
+				err = WriteConfig(configFile, config)
+			}
+			return nil, err
+		}
+	}
 	return &App{Config: config}, err
 }

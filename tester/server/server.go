@@ -14,13 +14,20 @@ type MyConfig struct {
 	Addr    string
 	Timeout time.Duration
 	Motd    string
+	conf    string
 }
 
-func (m *MyConfig) Flags() commond.Flags {
+func (m MyConfig) ConfigFile() string {
+	log.Println("reading config file:", m.conf)
+	return m.conf
+}
+
+func (m *MyConfig) Flags() commond.IFlags {
 	return commond.Flags{
 		commond.Flag{Name: "addr", Default: m.Addr, Description: "address to listen", Ptr: &m.Addr},
 		commond.Flag{Name: "timeout", Default: m.Timeout, Description: "timeout for http connectiong", Ptr: &m.Timeout},
 		commond.Flag{Name: "motd", Default: m.Motd, Description: "hello message", Ptr: &m.Motd},
+		commond.Flag{Name: "config", Default: "/tmp/fake.toml", Description: "path to config file", Ptr: &m.conf},
 	}
 }
 
